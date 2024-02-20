@@ -140,7 +140,7 @@ impl StreamChunks for ConcatSource {
     let mut current_column_offset = 0;
     let mut source_mapping: HashMap<String, u32> = HashMap::default();
     let mut name_mapping: HashMap<String, u32> = HashMap::default();
-    let mut need_to_cloas_mapping = false;
+    let mut need_to_close_mapping = false;
     for item in &self.children {
       let source_index_mapping: RefCell<HashMap<u32, u32>> =
         RefCell::new(HashMap::default());
@@ -159,7 +159,7 @@ impl StreamChunks for ConcatSource {
           } else {
             mapping.generated_column
           };
-          if need_to_cloas_mapping {
+          if need_to_close_mapping {
             if mapping.generated_line != 1 || mapping.generated_column != 0 {
               on_chunk(
                 None,
@@ -170,7 +170,7 @@ impl StreamChunks for ConcatSource {
                 },
               );
             }
-            need_to_cloas_mapping = false;
+            need_to_close_mapping = false;
           }
           let result_source_index =
             mapping.original.as_ref().and_then(|original| {
@@ -261,7 +261,7 @@ impl StreamChunks for ConcatSource {
             .insert(i, global_index.unwrap());
         },
       );
-      if need_to_cloas_mapping && (generated_line != 1 || generated_column != 0)
+      if need_to_close_mapping && (generated_line != 1 || generated_column != 0)
       {
         on_chunk(
           None,
@@ -271,14 +271,14 @@ impl StreamChunks for ConcatSource {
             original: None,
           },
         );
-        need_to_cloas_mapping = false;
+        need_to_close_mapping = false;
       }
       if generated_line > 1 {
         current_column_offset = generated_column;
       } else {
         current_column_offset += generated_column;
       }
-      need_to_cloas_mapping = need_to_cloas_mapping
+      need_to_close_mapping = need_to_close_mapping
         || (options.final_source && last_mapping_line == generated_line);
       current_line_offset += generated_line - 1;
     }
