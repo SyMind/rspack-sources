@@ -12,7 +12,6 @@ use rustc_hash::FxHashMap as HashMap;
 
 use crate::{
   helpers::{get_map, split_into_lines, GeneratedInfo, StreamChunks},
-  with_indices::WithIndices,
   MapOptions, Mapping, OriginalLocation, Source, SourceMap,
 };
 
@@ -274,7 +273,7 @@ impl<'a, T: Source> StreamChunks<'a> for ReplaceSource<T> {
     let mut generated_line_offset: i64 = 0;
     let mut generated_column_offset: i64 = 0;
     let mut generated_column_offset_line = 0;
-    let source_content_lines: RefCell<Vec<Option<Vec<&str>>>> =
+    let source_contents: RefCell<Vec<Option<&str>>> =
       RefCell::new(Vec::new());
     let name_mapping: RefCell<HashMap<Cow<str>, u32>> =
       RefCell::new(HashMap::default());
@@ -308,21 +307,19 @@ impl<'a, T: Source> StreamChunks<'a> for ReplaceSource<T> {
     // webpack-sources also have this function, refer https://github.com/webpack/webpack-sources/blob/main/lib/ReplaceSource.js#L158
     let check_original_content =
       |source_index: u32, line: u32, column: u32, expected_chunk: &str| {
-        if let Some(Some(content_lines)) =
-          source_content_lines.borrow().get(source_index as usize)
+        if let Some(Some(source_content)) =
+        source_contents.borrow().get(source_index as usize)
         {
-          if let Some(content_line) = content_lines.get(line as usize - 1) {
-            WithIndices::new(content_line).substring(
-              column as usize,
-              column as usize + expected_chunk.len(),
-            ) == expected_chunk
-          } else {
-            false
+          let content_line = split_into_lines(source_content).nth(line as usize - 1);
+          if let Some(content_line) = content_line {
+            if let Some((byte_index, _)) = content_line.char_indices().nth(column as usize) {
+              return content_line.get(byte_index..byte_index + expected_chunk.len()) == Some(expected_chunk);
+            }
           }
-        } else {
-          false
         }
+        false
       };
+
     let result = self.inner.stream_chunks(
       &MapOptions {
         columns: options.columns,
@@ -595,12 +592,11 @@ impl<'a, T: Source> StreamChunks<'a> for ReplaceSource<T> {
         pos = end_pos;
       },
       &mut |source_index, source, source_content| {
-        let mut source_content_lines = source_content_lines.borrow_mut();
-        while source_content_lines.len() <= source_index as usize {
-          source_content_lines.push(None);
+        let mut source_contents = source_contents.borrow_mut();
+        while source_contents.len() <= source_index as usize {
+          source_contents.push(None);
         }
-        source_content_lines[source_index as usize] = source_content
-          .map(|source_content| split_into_lines(source_content).collect());
+        source_contents[source_index as usize] = source_content;
         on_source(source_index, source, source_content);
       },
       &mut |name_index, name| {
